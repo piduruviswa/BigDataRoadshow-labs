@@ -36,6 +36,8 @@
     background:rgba(56,211,154,.12); border:1px solid rgba(56,211,154,.35);
     padding:6px 12px; border-radius:999px;
   }
+  .sla-badge.amber{ color:var(--amber); background:rgba(242,177,52,.12); border-color:rgba(242,177,52,.35); }
+  .sla-badge.red{ color:var(--red); background:rgba(255,92,114,.12); border-color:rgba(255,92,114,.35); }
   main{max-width:1360px; margin:0 auto; padding:22px 28px 60px;}
   .paths{display:grid; grid-template-columns:1fr 1fr; gap:20px;}
   @media (max-width:1000px){ .paths{grid-template-columns:1fr;} }
@@ -137,7 +139,10 @@
       <p>Powered by MEKO — agent-native memory, graph &amp; audit substrate on YugabyteDB</p>
     </div>
   </div>
-  <div class="sla-badge" id="clock">SYNC SLA ≤ 45ms</div>
+  <div style="display:flex; align-items:center; gap:10px;">
+    <div class="sla-badge" id="mekoBadge" title="Connection to the real MEKO MCP server">○ MEKO: checking…</div>
+    <div class="sla-badge" id="clock">SYNC SLA ≤ 45ms</div>
+  </div>
 </header>
 
 <main>
@@ -254,6 +259,33 @@ function setClock(){
   $('clock').textContent = 'SYNC SLA ≤ 45ms · ' + new Date().toLocaleTimeString();
 }
 setInterval(setClock, 1000); setClock();
+
+async function refreshMekoBadge(){
+  const badge = $('mekoBadge');
+  try {
+    const res = await fetch('/api/v1/meko/status');
+    const data = await res.json();
+    badge.className = 'sla-badge' + (data.connected ? '' : ' amber');
+    badge.textContent = data.connected
+      ? `● MEKO: Live (${data.tool_names.length} tools)`
+      : '○ MEKO: Simulated fallback';
+    badge.title = data.connected
+      ? `Connected to ${data.url}\nTools: ${data.tool_names.join(', ')}`
+      : `Not connected to ${data.url}${data.last_error ? '\n' + data.last_error : ''}\nDeep-forensic results below are from the local simulation.`;
+  } catch (e) {
+    badge.className = 'sla-badge red';
+    badge.textContent = '○ MEKO: unreachable';
+  }
+}
+refreshMekoBadge();
+setInterval(refreshMekoBadge, 15000);
+
+function sourceChip(source, tool){
+  if (source === 'meko-live') {
+    return `<span class="chip" style="color:var(--green);">● MEKO live${tool ? ' · ' + tool : ''}</span>`;
+  }
+  return `<span class="chip" style="color:var(--muted);">○ simulated fallback</span>`;
+}
 
 function pushAudit(text){
   const el = $('auditLog');
@@ -456,6 +488,7 @@ $('investigateBtn').onclick = async () => {
 
   $('graphResult').innerHTML = `
     <div class="chips" style="margin-bottom:10px;">
+      ${sourceChip(data.source, data.meko_tool_used)}
       <span class="chip">${data.ring_size} linked accounts</span>
       <span class="chip">$${data.pending_exposure_usd.toLocaleString()} pending exposure</span>
       <span class="chip">${data.latency_ms}ms traversal</span>
@@ -464,7 +497,7 @@ $('investigateBtn').onclick = async () => {
     <p class="empty-hint" style="margin-top:8px;">${data.method}</p>
   `;
 
-  pushAudit(`GRAPH SCAN · ${data.account_id} · ring of ${data.ring_size} detected, $${data.pending_exposure_usd} exposure (${data.latency_ms}ms)`);
+  pushAudit(`GRAPH SCAN [${data.source}] · ${data.account_id} · ring of ${data.ring_size} detected, $${data.pending_exposure_usd} exposure (${data.latency_ms}ms)`);
 
   $('sarPanel').style.display = 'block';
   $('sarPanel').dataset.account = data.account_id;
@@ -483,13 +516,14 @@ $('sarBtn').onclick = async () => {
 
   $('sarResult').innerHTML = `
     <div class="chips" style="margin-bottom:10px;">
+      ${sourceChip(data.source, data.meko_tool_used)}
       <span class="chip">${data.case_id}</span>
       <span class="chip">${data.latency_ms}ms synthesis</span>
     </div>
     <div class="narrative">${data.narrative}</div>
   `;
 
-  pushAudit(`SAR DRAFTED · ${data.case_id} (${data.latency_ms}ms)`);
+  pushAudit(`SAR DRAFTED [${data.source}] · ${data.case_id} (${data.latency_ms}ms)`);
 };
 
 loadScenarios();

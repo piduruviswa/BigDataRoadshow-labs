@@ -20,12 +20,19 @@ import time
 from collections import deque, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Set
+from typing import Any, Dict, List, Set
 
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 
 from main import app  # the exact synchronous /api/v1/transactions/evaluate path
+from meko_client import MekoClient
+
+# Real MEKO MCP client - used ONLY by the async deep-forensic path below.
+# Never wired into main.py's synchronous path: a network+OAuth round trip
+# cannot fit inside a 45ms SLA, and that path's whole point is avoiding
+# exactly that kind of latency risk. See meko_client.py for why.
+meko = MekoClient()
 
 BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = BASE_DIR.parent / "frontend"
@@ -47,6 +54,44 @@ MAX_HOPS = 3
 
 # In-memory case log so the console can show an audit trail (MEKO Audit Vault, Section 6).
 CASE_LOG: List[dict] = []
+
+
+@app.on_event("startup")
+async def _connect_meko_on_startup():
+    """Try once, non-blocking: a failed/pending connection just means the
+    async endpoints below fall back to the local simulation until you
+    authorize or MEKO becomes reachable - it never stops the demo server
+    from starting."""
+    result = await meko.connect()
+    if result.connected:
+        print(f"[MEKO] Connected to {meko.url} - tools: {result.tool_names}")
+    else:
+        print(f"[MEKO] Not connected ({result.error}). Deep-forensic endpoints "
+              f"will use the local simulation until /api/v1/meko/connect succeeds.")
+
+
+@app.on_event("shutdown")
+async def _close_meko_on_shutdown():
+    await meko.close()
+
+
+@app.get("/api/v1/meko/status")
+async def meko_status():
+    """Console-visible connection state - drives the Live/Simulated badge."""
+    return {
+        "url": meko.url,
+        "connected": meko.connected,
+        "tool_names": sorted(meko.tools) if meko.connected else [],
+        "last_error": meko.last_error,
+    }
+
+
+@app.post("/api/v1/meko/connect")
+async def meko_connect():
+    """Manually (re)trigger the OAuth + MCP connection - e.g. after you've
+    completed the browser authorization, or if MEKO was briefly down."""
+    result = await meko.connect()
+    return {"connected": result.connected, "tool_names": result.tool_names, "error": result.error}
 
 
 def _bfs_ring(start_id: str, max_hops: int = MAX_HOPS):
@@ -114,11 +159,52 @@ def _bfs_ring(start_id: str, max_hops: int = MAX_HOPS):
     }
 
 
+def _extract_tool_payload(result) -> Any:
+    """Best-effort read of an MCP CallToolResult: prefer structured_content
+    (the modern, typed path); otherwise concatenate text content blocks and
+    try to parse JSON, falling back to the raw text. MEKO's real output
+    shape isn't confirmed yet (see meko_client.py docstring), so this stays
+    lenient rather than assuming a schema that may not be right."""
+    structured = getattr(result, "structured_content", None)
+    if structured is not None:
+        return structured
+    text = "".join(getattr(block, "text", "") for block in getattr(result, "content", []))
+    try:
+        return json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        return text or None
+
+
+async def _try_meko_graph_call(account_id: str) -> tuple[str | None, Any]:
+    """Looks for a plausibly-matching graph/entity-resolution tool among
+    whatever MEKO actually exposed at connect time, and calls it. Returns
+    (tool_name, raw_payload) or (None, None) if unavailable/failed - callers
+    always keep the local computation as the visualized source of truth and
+    surface this only as supplementary "here's what MEKO itself returned"
+    context, since the exact call contract isn't confirmed yet."""
+    if not meko.connected:
+        return None, None
+    tool_name = (
+        meko.find_tool("graph") or meko.find_tool("entity") or meko.find_tool("mule") or meko.find_tool("datapack")
+    )
+    if not tool_name:
+        return None, None
+    try:
+        result = await meko.call_tool(tool_name, {"account_id": account_id, "max_hops": MAX_HOPS})
+        return tool_name, _extract_tool_payload(result)
+    except Exception as exc:  # noqa: BLE001 - degrade to local computation, never 500 the demo
+        meko.last_error = f"{type(exc).__name__}: {exc}"
+        return None, None
+
+
 @app.get("/api/v1/graph/investigate/{account_id}")
 async def investigate_graph(account_id: str):
     """Agent 5: Deep Graph Traversal & Mule Ring Agent (async, off critical path)."""
     start = time.perf_counter()
-    await asyncio.sleep(0.9)  # representative of a real 2-3 hop graph datapack query
+
+    meko_tool, meko_raw = await _try_meko_graph_call(account_id)
+    if meko_tool is None:
+        await asyncio.sleep(0.9)  # representative of a real 2-3 hop graph datapack query
 
     result = _bfs_ring(account_id)
     if result is None:
@@ -137,12 +223,16 @@ async def investigate_graph(account_id: str):
         "subgraph": result["subgraph"],
         "method": "3-hop BFS traversal + connected-component clustering (Louvain in production MEKO)",
         "latency_ms": round((time.perf_counter() - start) * 1000.0, 2),
+        "source": "meko-live" if meko_tool else "simulated",
+        "meko_tool_used": meko_tool,
+        "meko_raw_result": meko_raw,
     }
 
     CASE_LOG.append({
         "type": "GRAPH_INVESTIGATION",
         "account_id": account_id,
         "ring_detected": ring_detected,
+        "source": payload["source"],
         "at": datetime.now(timezone.utc).isoformat(),
     })
 
@@ -179,6 +269,37 @@ def _sar_narrative(account_id: str, investigation: dict) -> str:
     )
 
 
+async def _try_meko_sar_call(account_id: str, investigation: dict) -> tuple[str | None, str | None]:
+    """Looks for a plausibly-matching narrative-generation tool and asks
+    MEKO to draft the SAR itself. Returns (tool_name, narrative_text) or
+    (None, None) if unavailable/failed/unparseable - the caller falls back
+    to the local template either way, so a demo never breaks on this."""
+    if not meko.connected:
+        return None, None
+    tool_name = (
+        meko.find_tool("sar") or meko.find_tool("narrative") or meko.find_tool("synthesis") or meko.find_tool("report")
+    )
+    if not tool_name:
+        return None, None
+    try:
+        result = await meko.call_tool(tool_name, {
+            "account_id": account_id,
+            "ring_members": investigation["ring_members"],
+            "pending_exposure_usd": investigation["pending_exposure_usd"],
+        })
+        payload = _extract_tool_payload(result)
+        if isinstance(payload, str) and payload.strip():
+            return tool_name, payload
+        if isinstance(payload, dict):
+            for key in ("narrative", "text", "sar_narrative", "report"):
+                if isinstance(payload.get(key), str):
+                    return tool_name, payload[key]
+        return None, None
+    except Exception as exc:  # noqa: BLE001 - degrade to the local template, never 500 the demo
+        meko.last_error = f"{type(exc).__name__}: {exc}"
+        return None, None
+
+
 @app.post("/api/v1/sar/generate/{account_id}")
 async def generate_sar(account_id: str):
     """Agent 6: Forensic Synthesis & SAR Generation Agent (async, 2-15s SLA)."""
@@ -192,14 +313,18 @@ async def generate_sar(account_id: str):
     if not ring_detected:
         raise HTTPException(status_code=422, detail="No syndicate pattern detected - SAR not warranted")
 
-    await asyncio.sleep(2.2)  # representative of narrative synthesis + evidence graph compilation
-
-    narrative = _sar_narrative(account_id, investigation)
+    meko_tool, meko_narrative = await _try_meko_sar_call(account_id, investigation)
+    if meko_tool:
+        narrative = meko_narrative
+    else:
+        await asyncio.sleep(2.2)  # representative of narrative synthesis + evidence graph compilation
+        narrative = _sar_narrative(account_id, investigation)
 
     CASE_LOG.append({
         "type": "SAR_GENERATED",
         "account_id": account_id,
         "ring_members": investigation["ring_members"],
+        "source": "meko-live" if meko_tool else "simulated",
         "at": datetime.now(timezone.utc).isoformat(),
     })
 
@@ -211,6 +336,8 @@ async def generate_sar(account_id: str):
         "pending_exposure_usd": investigation["pending_exposure_usd"],
         "narrative": narrative,
         "latency_ms": round((time.perf_counter() - start) * 1000.0, 2),
+        "source": "meko-live" if meko_tool else "simulated",
+        "meko_tool_used": meko_tool,
     }
 
 

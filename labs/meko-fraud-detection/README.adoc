@@ -67,6 +67,50 @@ source .venv/bin/activate
 pytest test_meko_suite.py -v
 ----
 
+== Connecting to a real MEKO MCP server
+
+By default the deep-forensic path (Agents 5-6) falls back to a local
+simulation (`_bfs_ring` + a template SAR narrative) so the demo always runs
+end to end even with no network access. It can also make **real** calls to a
+live MEKO MCP server instead - `backend/meko_client.py` is a genuine MCP
+client (OAuth 2.1 + Streamable HTTP via the official `mcp` SDK), not a stub.
+
+1. Point it at your MEKO endpoint (defaults to `https://mcp.mekodev.com/mcp`):
++
+[source,bash]
+----
+export MEKO_MCP_URL=https://your-meko-endpoint/mcp
+----
+
+2. Run `./run_demo.sh`. On startup it tries to connect; if MEKO requires
+   OAuth, your browser opens automatically for the consent screen the first
+   time (tokens are then cached to `~/.meko/mcp_tokens.json`, so you won't
+   need to re-authorize on later runs).
+3. Check `http://localhost:8000/api/v1/meko/status` (or the "MEKO: ●/○"
+   badge in the console header) to see whether it's connected and which
+   tools it discovered. If the first attempt was made before you finished
+   authorizing in the browser, `POST /api/v1/meko/connect` retries without
+   restarting the server.
+4. Every graph/SAR response includes `"source": "meko-live"` or
+   `"simulated"` plus `meko_tool_used`, and the console labels each result
+   the same way - so it's always visible which one you're looking at.
+
+**What "real" means here, precisely:** the transport, OAuth flow, and tool
+discovery are genuine MCP client code - nothing about *reaching and
+authenticating to MEKO* is faked. What's still unconfirmed is the exact
+shape of MEKO's tools: `find_tool()` matches a connected tool by keyword
+(`"graph"`, `"sar"`, `"narrative"`, ...) since the real tool names haven't
+been confirmed against a reachable server yet. Once you've connected and can
+see the actual tool names/schemas (via the status endpoint, or `list_tools()`
+in your own MCP client), the exact `call_tool(name, arguments)` calls in
+`demo_app.py`'s `_try_meko_graph_call` / `_try_meko_sar_call` should be
+tightened to match.
+
+The synchronous critical path (`main.py`, Agents 1-4) deliberately never
+calls MEKO over the network - a live MCP round trip cannot fit an 8-12ms
+sub-budget, and avoiding exactly that kind of latency risk is the whole
+point of that path per the architecture spec.
+
 == Layout
 
 [source]
@@ -79,6 +123,9 @@ backend/
                        path (Agents 5-6: graph traversal + SAR generation),
                        an audit log, canned demo scenarios, and mounts the
                        frontend. Run this, not main.py, to see the full demo.
+  meko_client.py       Real MCP client to a live MEKO server (OAuth 2.1 +
+                       Streamable HTTP) - see "Connecting to a real MEKO
+                       MCP server" below. Used only by the async path.
   seed_profiles.json   Mock account baselines (Section 4.1 of the spec).
   seed_graph.json      Mock entity graph for the mule-ring scenario (4.2).
   test_meko_suite.py   The spec's automated test suite (Section 7).
