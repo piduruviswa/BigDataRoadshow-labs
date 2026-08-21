@@ -1,0 +1,109 @@
+= MEKO Multi-Agent Fraud Detection Demo
+
+A runnable demo built from the _"System Architecture Specification: Autonomous
+Multi-Agent Fraud Detection Platform"_ (Production Blueprint for Charles Schwab
+using MEKO). It exists to make one point concrete: MEKO lets you run a
+sub-45ms deterministic fraud decision and a multi-hop forensic graph
+investigation off the *same* agent-native data substrate, instead of stitching
+together a rules engine, a cache, a graph database and a case-management tool.
+
+Everything here is a demo scenario against a fictional bank and synthetic
+data - no real customers, accounts or transactions.
+
+== What it shows
+
+The spec splits fraud detection into two paths that share MEKO's memory,
+graph and audit layers:
+
+[cols="1,3", options="header"]
+|===
+| Path | Story
+
+| *A - Synchronous critical path* (Agents 1-4, ≤ 45ms)
+| A transaction lands, MEKO agents score velocity + device/JA4 reputation in
+  parallel against fast-state memory, and a deterministic arbiter returns
+  APPROVE / STEP_UP_MFA / KILL_SESSION_BLOCK - no LLM anywhere near this path.
+
+| *B - Asynchronous deep forensic path* (Agents 5-6, 0.5-15s)
+| Off the critical path, MEKO's graph datapack resolves a 3-hop entity graph
+  to find synthetic-identity mule rings hiding below AML thresholds, then
+  drafts a filing-ready FinCEN Form 111 SAR narrative automatically.
+|===
+
+The console runs three scenarios so you can see all three verdicts and both
+paths live:
+
+1. *Legit Private-Client Transfer* → `APPROVE` in a few ms.
+2. *Sub-Second ATO Burst Attack* (datacenter proxy, spoofed JA4, novel
+   recipient) → `KILL_SESSION_BLOCK`, still under the 45ms SLA.
+3. *Sleeper Mule Ring Transfer* (three synthetic accounts, each moving
+   ~$4.9k - just under the $5k structuring threshold - to one offshore
+   beneficiary) → the sync path only flags `STEP_UP_MFA`, but handing it to
+   the async graph agent instantly surfaces the shared device fingerprint,
+   VOIP recovery number and mail-drop address linking all three accounts,
+   and one click drafts the SAR.
+
+That last scenario is the actual pitch: point-in-time scoring alone misses a
+structured mule ring; a shared graph + memory substrate catches it in one
+follow-up query.
+
+== Running it
+
+[source,bash]
+----
+./run_demo.sh
+----
+
+Then open http://localhost:8000/. The script creates a virtualenv, installs
+`backend/requirements.txt`, and serves both the API and the console from one
+`uvicorn` process. API docs are at http://localhost:8000/docs.
+
+To run just the automated test suite from the spec:
+
+[source,bash]
+----
+cd backend
+source .venv/bin/activate
+pytest test_meko_suite.py -v
+----
+
+== Layout
+
+[source]
+----
+backend/
+  main.py             Synchronous critical path (Agents 1-4) - the exact
+                       scoring formulas, thresholds and endpoint from the
+                       spec's "Complete Backend Implementation" section.
+  demo_app.py          Wraps main.py's `app` and adds the async deep-forensic
+                       path (Agents 5-6: graph traversal + SAR generation),
+                       an audit log, canned demo scenarios, and mounts the
+                       frontend. Run this, not main.py, to see the full demo.
+  seed_profiles.json   Mock account baselines (Section 4.1 of the spec).
+  seed_graph.json      Mock entity graph for the mule-ring scenario (4.2).
+  test_meko_suite.py   The spec's automated test suite (Section 7).
+frontend/
+  index.html           "Schwab Unified Fraud & SecOps Console" - single-file,
+                        dependency-free dashboard driving both paths live.
+run_demo.sh
+----
+
+== Notes on faithfulness to the spec
+
+* `main.py` reproduces the spec's synchronous scoring logic, thresholds and
+  response shape as given, including the two seed account profiles in
+  `STATE_PROFILES`.
+* `test_meko_suite.py` reproduces the spec's two test cases and assertions
+  verbatim; the only change is using `httpx.ASGITransport` instead of the
+  deprecated `AsyncClient(app=...)` constructor removed in modern httpx.
+* Agents 5 and 6 (deep graph traversal, SAR generation) were specified by
+  role and SLA only - no code was given - so `demo_app.py` implements them:
+  a 3-hop BFS over the seed graph (labeled as an approximation of the
+  production Louvain community detection MEKO would run), and a
+  template-driven FinCEN Form 111 narrative generator.
+* `seed_profiles.json`/`seed_graph.json` match the spec's mock datasets;
+  `ACC-7702` / `ACC-7703` profiles were added so the mule-ring scenario
+  referenced by the graph has account records behind every node.
+* Artificial `asyncio.sleep()` calls in the async path keep the demo inside
+  the spec's stated SLA bands (500ms-3s for graph, 2-15s for SAR) - it's
+  simulated latency for a live demo, not a real graph engine.

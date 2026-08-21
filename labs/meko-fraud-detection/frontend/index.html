@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Schwab Unified Fraud &amp; SecOps Console — MEKO</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root{
+    --bg:#0b1220; --panel:#121b2e; --panel-2:#0f1729; --border:#233047;
+    --text:#e8edf7; --muted:#8fa0bd; --accent:#4fb0ff; --accent-2:#7c8cff;
+    --green:#38d39a; --amber:#f2b134; --red:#ff5c72;
+    --mono: "SF Mono", "Cascadia Code", Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text); font-family:var(--sans);
+    min-height:100vh;
+  }
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 28px; border-bottom:1px solid var(--border);
+    background:linear-gradient(180deg,#0f1729,#0b1220);
+    position:sticky; top:0; z-index:10;
+  }
+  .brand{display:flex; align-items:center; gap:14px;}
+  .brand .mark{
+    width:36px;height:36px;border-radius:9px;
+    background:conic-gradient(from 220deg, var(--accent), var(--accent-2), var(--accent));
+    display:flex;align-items:center;justify-content:center;font-weight:800;color:#08101f;font-size:15px;
+  }
+  .brand h1{font-size:16px; margin:0; font-weight:650; letter-spacing:.2px;}
+  .brand p{margin:0; font-size:12px; color:var(--muted);}
+  .sla-badge{
+    font-family:var(--mono); font-size:12px; color:var(--green);
+    background:rgba(56,211,154,.12); border:1px solid rgba(56,211,154,.35);
+    padding:6px 12px; border-radius:999px;
+  }
+  main{max-width:1360px; margin:0 auto; padding:22px 28px 60px;}
+  .paths{display:grid; grid-template-columns:1fr 1fr; gap:20px;}
+  @media (max-width:1000px){ .paths{grid-template-columns:1fr;} }
+  .col-title{
+    display:flex; align-items:center; gap:10px; margin:2px 0 12px;
+  }
+  .col-title .tag{
+    font-family:var(--mono); font-size:11px; padding:3px 8px; border-radius:6px;
+    border:1px solid var(--border); color:var(--muted);
+  }
+  .col-title h2{font-size:14px; margin:0; font-weight:650;}
+  .col-title .sub{font-size:11px; color:var(--muted); font-family:var(--mono);}
+  .panel{
+    background:var(--panel); border:1px solid var(--border); border-radius:12px;
+    padding:18px; margin-bottom:16px;
+  }
+  .panel h3{font-size:13px; margin:0 0 12px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em;}
+  .scenario-btns{display:flex; flex-direction:column; gap:8px; margin-bottom:14px;}
+  .scenario-btn{
+    text-align:left; background:var(--panel-2); border:1px solid var(--border); color:var(--text);
+    padding:10px 12px; border-radius:9px; cursor:pointer; font-family:var(--sans); font-size:12.5px;
+    transition:border-color .15s, transform .1s;
+  }
+  .scenario-btn:hover{border-color:var(--accent);}
+  .scenario-btn:active{transform:scale(.99);}
+  .scenario-btn b{display:block; font-size:12.5px; margin-bottom:2px;}
+  .scenario-btn span{color:var(--muted); font-size:11.5px;}
+  .form-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;}
+  .form-grid label{display:flex; flex-direction:column; gap:4px; font-size:11px; color:var(--muted);}
+  .form-grid input, .form-grid select{
+    background:var(--panel-2); border:1px solid var(--border); color:var(--text);
+    padding:8px 9px; border-radius:7px; font-family:var(--mono); font-size:12px;
+  }
+  .btn-primary{
+    background:linear-gradient(135deg, var(--accent), var(--accent-2)); color:#08101f; border:none;
+    font-weight:650; padding:10px 16px; border-radius:9px; cursor:pointer; font-size:13px;
+  }
+  .btn-primary:disabled{opacity:.5; cursor:default;}
+  .btn-secondary{
+    background:transparent; border:1px solid var(--border); color:var(--text);
+    padding:9px 14px; border-radius:9px; cursor:pointer; font-size:12.5px;
+  }
+  .btn-secondary:disabled{opacity:.4; cursor:default;}
+  .verdict-card{display:none;}
+  .verdict-card.show{display:block;}
+  .verdict-badge{
+    display:inline-flex; align-items:center; gap:8px; padding:8px 14px; border-radius:999px;
+    font-weight:700; font-size:14px; letter-spacing:.03em; margin-bottom:14px;
+  }
+  .verdict-badge.APPROVE{background:rgba(56,211,154,.15); color:var(--green); border:1px solid rgba(56,211,154,.4);}
+  .verdict-badge.STEP_UP_MFA{background:rgba(242,177,52,.15); color:var(--amber); border:1px solid rgba(242,177,52,.4);}
+  .verdict-badge.BLOCK{background:rgba(255,92,114,.15); color:var(--red); border:1px solid rgba(255,92,114,.4);}
+  .gauge-row{display:flex; gap:22px; align-items:center; margin-bottom:14px;}
+  .gauge-num{font-family:var(--mono); font-size:30px; font-weight:700;}
+  .gauge-label{font-size:11px; color:var(--muted); margin-top:2px;}
+  .bars{display:flex; flex-direction:column; gap:10px; margin-bottom:14px;}
+  .bar-row{display:grid; grid-template-columns:130px 1fr 60px; align-items:center; gap:10px; font-size:11.5px;}
+  .bar-track{height:8px; background:var(--panel-2); border-radius:5px; overflow:hidden; position:relative; border:1px solid var(--border);}
+  .bar-fill{height:100%; border-radius:5px; background:var(--accent);}
+  .bar-fill.sla{background:var(--green);}
+  .sla-line{position:absolute; top:-2px; bottom:-2px; width:2px; background:var(--red); opacity:.8;}
+  .chips{display:flex; flex-wrap:wrap; gap:6px;}
+  .chip{
+    font-family:var(--mono); font-size:10.5px; background:var(--panel-2); border:1px solid var(--border);
+    color:var(--amber); padding:4px 8px; border-radius:6px;
+  }
+  .empty-hint{color:var(--muted); font-size:12.5px; line-height:1.6;}
+  svg text{font-family:var(--sans); fill:var(--text);}
+  .narrative{
+    font-family:var(--mono); font-size:11.5px; white-space:pre-wrap; line-height:1.6;
+    background:var(--panel-2); border:1px solid var(--border); border-radius:9px; padding:14px;
+    max-height:340px; overflow-y:auto;
+  }
+  .metrics{
+    display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-top:24px;
+  }
+  @media (max-width:900px){ .metrics{grid-template-columns:repeat(2,1fr);} }
+  .metric{
+    background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px;
+    text-align:center;
+  }
+  .metric .val{font-family:var(--mono); font-size:22px; font-weight:700; color:var(--accent);}
+  .metric .lab{font-size:11px; color:var(--muted); margin-top:4px;}
+  .loading{display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12.5px; font-family:var(--mono);}
+  .spinner{width:12px; height:12px; border-radius:50%; border:2px solid var(--border); border-top-color:var(--accent); animation:spin .7s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .audit{font-family:var(--mono); font-size:11px; color:var(--muted); max-height:140px; overflow-y:auto;}
+  .audit div{padding:4px 0; border-bottom:1px dashed var(--border);}
+  footer{text-align:center; color:var(--muted); font-size:11px; padding:20px; font-family:var(--mono);}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="mark">M</div>
+    <div>
+      <h1>Schwab Unified Fraud &amp; SecOps Console</h1>
+      <p>Powered by MEKO — agent-native memory, graph &amp; audit substrate on YugabyteDB</p>
+    </div>
+  </div>
+  <div class="sla-badge" id="clock">SYNC SLA ≤ 45ms</div>
+</header>
+
+<main>
+  <div class="paths">
+
+    <!-- PATH A -->
+    <div>
+      <div class="col-title">
+        <span class="tag">PATH A</span>
+        <h2>Synchronous Critical Path</h2>
+        <span class="sub">Agents 1–4 · &lt; 45ms</span>
+      </div>
+
+      <div class="panel">
+        <h3>Run a scenario</h3>
+        <div class="scenario-btns" id="scenarioBtns"></div>
+
+        <h3 style="margin-top:6px;">Or send a custom transaction</h3>
+        <div class="form-grid">
+          <label>Account ID
+            <input id="f_account" value="ACC-882194" />
+          </label>
+          <label>Amount (USD)
+            <input id="f_amount" type="number" value="150" />
+          </label>
+          <label>Recipient ID
+            <input id="f_recipient" value="ZEL-339182" />
+          </label>
+          <label>Client IP
+            <input id="f_ip" value="73.189.44.12" />
+          </label>
+          <label>JA4 Signature
+            <input id="f_ja4" value="t13d1516h2_8daaf6152771_b5e52c8b8791" />
+          </label>
+          <label>Biometric Dwell (ms)
+            <input id="f_dwell" type="number" value="210" />
+          </label>
+        </div>
+        <button class="btn-primary" id="evalBtn">Evaluate Transaction →</button>
+      </div>
+
+      <div class="panel verdict-card" id="verdictCard">
+        <h3>Agent 4 · Inline Policy Arbiter Verdict</h3>
+        <span class="verdict-badge" id="verdictBadge"></span>
+
+        <div class="gauge-row">
+          <div>
+            <div class="gauge-num" id="riskNum">0.00</div>
+            <div class="gauge-label">Composite Risk Score</div>
+          </div>
+          <div>
+            <div class="gauge-num" id="latNum">0ms</div>
+            <div class="gauge-label">Pipeline Latency (SLA ≤45ms)</div>
+          </div>
+        </div>
+
+        <div class="bars" id="bars"></div>
+
+        <h3 style="margin-top:2px;">Triggered Policies</h3>
+        <div class="chips" id="chips"><span class="empty-hint">None — transaction is clean.</span></div>
+      </div>
+    </div>
+
+    <!-- PATH B -->
+    <div>
+      <div class="col-title">
+        <span class="tag">PATH B</span>
+        <h2>Asynchronous Deep Forensic Path</h2>
+        <span class="sub">Agents 5–6 · 500ms – 15s</span>
+      </div>
+
+      <div class="panel">
+        <h3>Agent 5 · Deep Graph Traversal &amp; Mule Ring</h3>
+        <p class="empty-hint" id="graphHint">
+          Run the <b>Sleeper Mule Ring Transfer</b> scenario on the left, then investigate
+          the account's entity graph here — MEKO resolves shared devices, phones and
+          addresses across accounts in a 3-hop traversal.
+        </p>
+        <button class="btn-secondary" id="investigateBtn" disabled>Investigate Entity Graph →</button>
+        <div id="graphLoading"></div>
+        <div id="graphResult"></div>
+      </div>
+
+      <div class="panel" id="sarPanel" style="display:none;">
+        <h3>Agent 6 · Forensic Synthesis &amp; SAR Generation</h3>
+        <p class="empty-hint">Ring confirmed. Auto-draft a FinCEN Form 111 narrative for the Financial Crimes Unit.</p>
+        <button class="btn-secondary" id="sarBtn">Generate SAR Narrative →</button>
+        <div id="sarLoading"></div>
+        <div id="sarResult"></div>
+      </div>
+
+      <div class="panel">
+        <h3>MEKO Audit Vault</h3>
+        <div class="audit" id="auditLog"><span class="empty-hint">No agent activity yet this session.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="metrics">
+    <div class="metric"><div class="val">≤45ms</div><div class="lab">Inline decision SLA — zero LLM latency risk</div></div>
+    <div class="metric"><div class="val">3-hop</div><div class="lab">Entity resolution across the shared MEKO graph</div></div>
+    <div class="metric"><div class="val">&lt;15s</div><div class="lab">Auto-drafted, filing-ready SAR narrative</div></div>
+    <div class="metric"><div class="val">1 substrate</div><div class="lab">Memory + graph + audit — no bolted-together stack</div></div>
+  </div>
+</main>
+
+<footer>MEKO Fraud Detection Platform · demo build · not for production use</footer>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let lastEvalAccount = null;
+
+function setClock(){
+  $('clock').textContent = 'SYNC SLA ≤ 45ms · ' + new Date().toLocaleTimeString();
+}
+setInterval(setClock, 1000); setClock();
+
+function pushAudit(text){
+  const el = $('auditLog');
+  if (el.querySelector('.empty-hint')) el.innerHTML = '';
+  const row = document.createElement('div');
+  row.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
+  el.prepend(row);
+}
+
+async function loadScenarios(){
+  const res = await fetch('/api/v1/demo/scenarios');
+  const data = await res.json();
+  const wrap = $('scenarioBtns');
+  data.scenarios.forEach(s => {
+    const btn = document.createElement('button');
+    btn.className = 'scenario-btn';
+    btn.innerHTML = `<b>${s.label}</b><span>${s.description}</span>`;
+    btn.onclick = () => fillForm(s.payload);
+    wrap.appendChild(btn);
+  });
+}
+
+function fillForm(p){
+  $('f_account').value = p.account_id;
+  $('f_amount').value = p.amount;
+  $('f_recipient').value = p.recipient_id;
+  $('f_ip').value = p.client_ip;
+  $('f_ja4').value = p.ja4_signature;
+  $('f_dwell').value = p.biometric_dwell_ms ?? 42;
+  evaluate();
+}
+
+function barRow(label, value, max, latency){
+  const pct = Math.min(100, (value / max) * 100);
+  return `
+    <div class="bar-row">
+      <span>${label}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+      <span>${latency}ms</span>
+    </div>`;
+}
+
+async function evaluate(){
+  const payload = {
+    account_id: $('f_account').value,
+    amount: parseFloat($('f_amount').value),
+    recipient_id: $('f_recipient').value,
+    client_ip: $('f_ip').value,
+    ja4_signature: $('f_ja4').value,
+    biometric_dwell_ms: parseInt($('f_dwell').value || '42', 10),
+  };
+  $('evalBtn').disabled = true;
+  $('evalBtn').textContent = 'Evaluating…';
+
+  const res = await fetch('/api/v1/transactions/evaluate', {
+    method: 'POST',
+    headers: {'content-type':'application/json'},
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+
+  $('evalBtn').disabled = false;
+  $('evalBtn').textContent = 'Evaluate Transaction →';
+
+  $('verdictCard').classList.add('show');
+  const badge = $('verdictBadge');
+  badge.className = 'verdict-badge ' + data.verdict;
+  badge.textContent = data.verdict === 'BLOCK' ? '⛔ KILL_SESSION_BLOCK'
+                     : data.verdict === 'STEP_UP_MFA' ? '⚠ STEP_UP_MFA'
+                     : '✓ APPROVE';
+
+  $('riskNum').textContent = data.composite_risk_score.toFixed(3);
+  $('riskNum').style.color = data.verdict === 'BLOCK' ? 'var(--red)' : data.verdict === 'STEP_UP_MFA' ? 'var(--amber)' : 'var(--green)';
+  $('latNum').textContent = data.pipeline_latency_ms.toFixed(2) + 'ms';
+  $('latNum').style.color = data.pipeline_latency_ms <= 45 ? 'var(--green)' : 'var(--red)';
+
+  $('bars').innerHTML = [
+    barRow('Velocity risk (Agent 2)', data.agent_telemetry.velocity_risk, 1.0, data.agent_telemetry.velocity_latency_ms),
+    barRow('Device risk (Agent 3)', data.agent_telemetry.device_risk, 1.0, data.agent_telemetry.device_latency_ms),
+  ].join('');
+
+  const chipsEl = $('chips');
+  if (data.triggered_policies.length){
+    chipsEl.innerHTML = data.triggered_policies.map(p => `<span class="chip">${p}</span>`).join('');
+  } else {
+    chipsEl.innerHTML = '<span class="empty-hint">None — transaction is clean.</span>';
+  }
+
+  pushAudit(`SYNC EVAL · ${data.account_id} · $${data.amount} → ${data.verdict} (risk ${data.composite_risk_score}, ${data.pipeline_latency_ms}ms)`);
+
+  lastEvalAccount = data.account_id;
+  $('investigateBtn').disabled = false;
+  $('graphHint').textContent = `Ready to investigate account ${data.account_id} in the MEKO entity graph.`;
+}
+
+$('evalBtn').onclick = evaluate;
+
+function layoutGraph(nodes){
+  const cols = [
+    {types:['Account'], x: 60},
+    {types:['DeviceHash','PhoneNumber','Address'], x: 300},
+    {types:['ExternalMule'], x: 500},
+  ];
+  const pos = {};
+  const height = 280;
+  cols.forEach(col => {
+    const items = nodes.filter(n => col.types.includes(n.type));
+    items.forEach((n, i) => {
+      pos[n.id] = { x: col.x, y: 30 + (i+1) * (height / (items.length+1)) };
+    });
+  });
+  return pos;
+}
+
+function colorFor(type){
+  return { Account:'#4fb0ff', DeviceHash:'#f2b134', PhoneNumber:'#f2b134', Address:'#f2b134', ExternalMule:'#ff5c72' }[type] || '#8fa0bd';
+}
+
+// Wrap a node label into up to `maxLines` tspans of roughly `maxChars` each,
+// splitting on natural word/slash boundaries so long entity labels don't
+// overflow the SVG or collide with the next node's text.
+function wrapLabel(label, maxChars){
+  const words = label.replace(/ \/ /g, ' | ').split(' ');
+  const lines = [];
+  let cur = '';
+  words.forEach(w => {
+    if ((cur + ' ' + w).trim().length > maxChars && cur){
+      lines.push(cur.trim());
+      cur = w;
+    } else {
+      cur = (cur + ' ' + w).trim();
+    }
+  });
+  if (cur) lines.push(cur);
+  return lines.map(l => l.replace(' | ', ' / '));
+}
+
+function renderGraph(subgraph){
+  const pos = layoutGraph(subgraph.nodes);
+  const NODES_LOOKUP = {};
+  subgraph.nodes.forEach(n => NODES_LOOKUP[n.id] = n);
+  const w = 640, h = 360;
+  let svg = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="max-width:100%;">`;
+
+  // Structural edges (shared device/phone/address) are drawn unlabeled -
+  // the node text already says what they are, and 3-way fan-in makes
+  // per-edge relation labels overlap illegibly wherever they sit along
+  // the line. The outbound ACH amounts matter, though, so they're listed
+  // as a small stacked ledger under the mule node instead of inline.
+  subgraph.edges.forEach(e => {
+    const a = pos[e.source], b = pos[e.target];
+    if (!a || !b) return;
+    svg += `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#3a4a68" stroke-width="1.5" />`;
+  });
+
+  const amountEdges = subgraph.edges.filter(e => e.amount);
+  if (amountEdges.length){
+    // Fixed strip below the node layout - never collides with node labels
+    // regardless of how many accounts/artifacts are in the ring.
+    const lx = 20, ly = 300;
+    svg += `<text x="${lx}" y="${ly}" font-size="9" fill="#8fa0bd">Pending ACH to beneficiary:</text>`;
+    amountEdges.forEach((e, i) => {
+      const src = NODES_LOOKUP[e.source] || {label: e.source};
+      svg += `<text x="${lx + (i % 3) * 210}" y="${ly + 16 + Math.floor(i / 3) * 14}" font-size="9.5" fill="#ff5c72">${src.label} → $${e.amount.toLocaleString()}</text>`;
+    });
+  }
+
+  subgraph.nodes.forEach(n => {
+    const p = pos[n.id];
+    if (!p) return;
+    const r = n.type === 'Account' ? 9 : 7;
+    const lines = wrapLabel(n.label, 22);
+    const lineHeight = 11;
+    const startY = p.y + 4 - ((lines.length - 1) * lineHeight) / 2;
+    svg += `<circle cx="${p.x}" cy="${p.y}" r="${r}" fill="${colorFor(n.type)}" stroke="#0b1220" stroke-width="2" />`;
+    lines.forEach((line, i) => {
+      svg += `<text x="${p.x + r + 6}" y="${startY + i * lineHeight}" font-size="10.5">${line}</text>`;
+    });
+  });
+
+  svg += '</svg>';
+  return svg;
+}
+
+$('investigateBtn').onclick = async () => {
+  $('investigateBtn').disabled = true;
+  $('graphLoading').innerHTML = '<div class="loading"><div class="spinner"></div> Running 3-hop entity graph traversal…</div>';
+  $('graphResult').innerHTML = '';
+
+  const res = await fetch(`/api/v1/graph/investigate/${lastEvalAccount}`);
+  const data = await res.json();
+  $('graphLoading').innerHTML = '';
+  $('investigateBtn').disabled = false;
+
+  if (!data.ring_detected){
+    $('graphResult').innerHTML = `<p class="empty-hint">No linked ring found for ${data.account_id} within 3 hops. This account looks isolated.</p>`;
+    pushAudit(`GRAPH SCAN · ${data.account_id} · no ring detected (${data.latency_ms}ms)`);
+    return;
+  }
+
+  $('graphResult').innerHTML = `
+    <div class="chips" style="margin-bottom:10px;">
+      <span class="chip">${data.ring_size} linked accounts</span>
+      <span class="chip">$${data.pending_exposure_usd.toLocaleString()} pending exposure</span>
+      <span class="chip">${data.latency_ms}ms traversal</span>
+    </div>
+    ${renderGraph(data.subgraph)}
+    <p class="empty-hint" style="margin-top:8px;">${data.method}</p>
+  `;
+
+  pushAudit(`GRAPH SCAN · ${data.account_id} · ring of ${data.ring_size} detected, $${data.pending_exposure_usd} exposure (${data.latency_ms}ms)`);
+
+  $('sarPanel').style.display = 'block';
+  $('sarPanel').dataset.account = data.account_id;
+};
+
+$('sarBtn').onclick = async () => {
+  const account = $('sarPanel').dataset.account;
+  $('sarBtn').disabled = true;
+  $('sarLoading').innerHTML = '<div class="loading"><div class="spinner"></div> Synthesizing FinCEN SAR narrative…</div>';
+  $('sarResult').innerHTML = '';
+
+  const res = await fetch(`/api/v1/sar/generate/${account}`, {method:'POST'});
+  const data = await res.json();
+  $('sarLoading').innerHTML = '';
+  $('sarBtn').disabled = false;
+
+  $('sarResult').innerHTML = `
+    <div class="chips" style="margin-bottom:10px;">
+      <span class="chip">${data.case_id}</span>
+      <span class="chip">${data.latency_ms}ms synthesis</span>
+    </div>
+    <div class="narrative">${data.narrative}</div>
+  `;
+
+  pushAudit(`SAR DRAFTED · ${data.case_id} (${data.latency_ms}ms)`);
+};
+
+loadScenarios();
+</script>
+</body>
+</html>

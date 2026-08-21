@@ -1,0 +1,46 @@
+{
+  "ACC-882194": {
+    "account_id": "ACC-882194",
+    "customer_name": "Eleanor Vance (Private Wealth)",
+    "tier": "SCHWAB_ONE_PRIVATE",
+    "historical_mean_daily_volume": 420.00,
+    "historical_max_tx": 1200.00,
+    "hourly_frequency_mean": 0.3,
+    "authorized_ja4": ["t13d1516h2_8daaf6152771_b5e52c8b8791"],
+    "authorized_asns": ["AS7922"],
+    "known_recipients": ["ZEL-339182", "ZEL-118274", "ACH-SCHWAB-901"]
+  },
+  "ACC-7701": {
+    "account_id": "ACC-7701",
+    "customer_name": "John Doe (Synthetic Ring Profile A)",
+    "tier": "RETAIL_INVESTOR",
+    "historical_mean_daily_volume": 45.00,
+    "historical_max_tx": 300.00,
+    "hourly_frequency_mean": 0.05,
+    "authorized_ja4": ["t13d1008h1_unknown"],
+    "authorized_asns": ["AS16509"],
+    "known_recipients": []
+  },
+  "ACC-7702": {
+    "account_id": "ACC-7702",
+    "customer_name": "Maria Alvarez (Synthetic Ring Profile B)",
+    "tier": "RETAIL_INVESTOR",
+    "historical_mean_daily_volume": 40.00,
+    "historical_max_tx": 280.00,
+    "hourly_frequency_mean": 0.04,
+    "authorized_ja4": ["t13d1008h1_unknown"],
+    "authorized_asns": ["AS16509"],
+    "known_recipients": []
+  },
+  "ACC-7703": {
+    "account_id": "ACC-7703",
+    "customer_name": "Raj Patel (Synthetic Ring Profile C)",
+    "tier": "RETAIL_INVESTOR",
+    "historical_mean_daily_volume": 38.00,
+    "historical_max_tx": 260.00,
+    "hourly_frequency_mean": 0.04,
+    "authorized_ja4": ["t13d1008h1_unknown"],
+    "authorized_asns": ["AS16509"],
+    "known_recipients": []
+  }
+}

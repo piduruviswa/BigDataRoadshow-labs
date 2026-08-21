@@ -1,0 +1,23 @@
+{
+  "nodes": [
+    { "id": "ACC-7701", "type": "Account", "label": "Account 7701 (A)", "synthetic": true },
+    { "id": "ACC-7702", "type": "Account", "label": "Account 7702 (B)", "synthetic": true },
+    { "id": "ACC-7703", "type": "Account", "label": "Account 7703 (C)", "synthetic": true },
+    { "id": "DEV-ANON-77X", "type": "DeviceHash", "label": "Shared Canvas Fingerprint #77X" },
+    { "id": "PHONE-VOIP-01", "type": "PhoneNumber", "label": "+1 (206) 555-0199 (Bandwidth VOIP)" },
+    { "id": "ADDR-CMRA-90", "type": "Address", "label": "1042 Industrial Pkwy (CMRA Maildrop)" },
+    { "id": "MULE-BENEFICIARY-EXT", "type": "ExternalMule", "label": "Offshore Neobank / Acct #99881122" }
+  ],
+  "edges": [
+    { "source": "ACC-7701", "target": "DEV-ANON-77X", "relation": "LOGIN_FINGERPRINT" },
+    { "source": "ACC-7702", "target": "DEV-ANON-77X", "relation": "LOGIN_FINGERPRINT" },
+    { "source": "ACC-7703", "target": "DEV-ANON-77X", "relation": "LOGIN_FINGERPRINT" },
+    { "source": "ACC-7701", "target": "PHONE-VOIP-01", "relation": "RECOVERY_PHONE" },
+    { "source": "ACC-7702", "target": "PHONE-VOIP-01", "relation": "RECOVERY_PHONE" },
+    { "source": "ACC-7702", "target": "ADDR-CMRA-90", "relation": "BILLING_ADDRESS" },
+    { "source": "ACC-7703", "target": "ADDR-CMRA-90", "relation": "BILLING_ADDRESS" },
+    { "source": "ACC-7701", "target": "MULE-BENEFICIARY-EXT", "relation": "PENDING_OUTBOUND_ACH", "amount": 4900.00 },
+    { "source": "ACC-7702", "target": "MULE-BENEFICIARY-EXT", "relation": "PENDING_OUTBOUND_ACH", "amount": 4950.00 },
+    { "source": "ACC-7703", "target": "MULE-BENEFICIARY-EXT", "relation": "PENDING_OUTBOUND_ACH", "amount": 4890.00 }
+  ]
+}

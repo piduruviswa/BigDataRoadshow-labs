@@ -7,6 +7,7 @@ So far this consists of:
 * link:labs/phd-hawq[PHD and Hawq Overview Lab]
 * link:labs/gemfire[GemFire Overview Lab (optional)]  
 * link:labs/realtime-stream-demo[Real Time Stream Demo using Pivotal Stack]
+* link:labs/meko-fraud-detection[MEKO Multi-Agent Fraud Detection Demo]
 
 == Environment
 
